@@ -73,12 +73,11 @@ int main(int argc, char *argv[]) {
         freeaddrinfo(res);
         return 1;
     }
-
+    printf("Conexão criada com o servidor primário.\n");
     // Libera memória da estrutura res
     freeaddrinfo(res);
-
     // Lê mensagem do usuário
-    printf("[CLIENTE] Mensagem: ");
+    printf("Escreva o seu username:\n>");
     fgets(buffer, sizeof(buffer), stdin);
     buffer[strcspn(buffer, "\n")] = '\0';
 
