@@ -1,23 +1,9 @@
-/***************************************************************
- *
- * Nome do arquivo: servidor_tcp.c
- *
- * Descrição: Servidor TCP simples iterativo.
- *            Recebe mensagens e envia de volta.
- *
- * Autor: Giovanni Venâncio
- * Data: 29/10/2025
- *
- * Compilação:
- *     gcc servidor_tcp.c -o servidor_tcp
- *
- * Execução:
- *     ./servidor_tcp <porta>
- *
- * Exemplo:
- *     ./servidor_tcp 8500
- *
- ***************************************************************/
+/**
+ * @name client.c
+ * @author Luiz Henrique Murback Wiedmer
+ * @details Código do servidor em um sistema cliente-servidor de upload de
+ * arquivos
+ */
 
 #include <netdb.h>       // getaddrinfo, addrinfo
 #include <netinet/in.h>  // Estruturas de endereço IP (sockaddr_in)
@@ -27,6 +13,8 @@
 #include <sys/socket.h>  // Funções e estruturas de socket
 #include <sys/types.h>   // Tipos de dados (socklen_t)
 #include <unistd.h>      // close, read, write
+
+#include "../message.h"
 
 #define TAM_MAX 1024  // Tamanho máximo do buffer de dados
 #define TAM_FILA 5    // Tamanho da fila de conexões
@@ -43,7 +31,7 @@ int main(int argc, char *argv[]) {
         hints,  // Define o tipo de endereço do servidor (TCP + IPv4)
         *res;
     struct sockaddr_storage cliente_addr;  // Endereço genérico do cliente
-    char buffer[TAM_MAX];                  // Buffer de dados
+    unsigned char buffer[TAM_MAX];         // Buffer de dados
     socklen_t addr_len;                    // Tamanho da estrutura de endereço
     char *porta = argv[1];                 // Porta do servidor
 
@@ -91,7 +79,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         addr_len = sizeof(cliente_addr);
 
-        printf("[SERVIDOR] Aguardando conexões...\n");
+        printf("Aguardando conexões...\n");
 
         // Aceita conexão de um cliente
         connfd = accept(sockfd, (struct sockaddr *)&cliente_addr, &addr_len);
@@ -100,17 +88,29 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        printf("[SERVIDOR] Cliente conectado.\n");
-
-        // Recebe dados do cliente
-        memset(buffer, 0, sizeof(buffer));
-        recv(connfd, buffer, sizeof(buffer), 0);
-
-        printf("[SERVIDOR] Mensagem recebida: %s\n", buffer);
-
-        // Envia a mesma mensagem de volta
-        send(connfd, buffer, strlen(buffer), 0);
-
+        printf("Conexão com cliente [1] estabelecida.\n");
+        while (1) {
+            printf("Aguardando mensagens.\n");
+            memset(buffer, 0, sizeof(buffer));
+            recv(connfd, buffer, sizeof(buffer), 0);
+            switch (buffer[0]) {
+                case FILEINFO:
+                    printf("Operação solicitada: upload\n");
+                    rcvFile(connfd, buffer);
+                    break;
+                case LISTREQ:
+                    printf("Operação solicitada: list\n");
+                    break;
+                case EXIT:
+                    printf("Operação solicitada: exit\n");
+                    break;
+                case END:
+                    printf("Operação solicitada: endAll\n");
+                    break;
+                default:
+                    break;
+            }
+        }
         // Fecha conexão com o cliente
         close(connfd);
     }

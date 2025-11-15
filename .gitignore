@@ -57,5 +57,5 @@ dkms.conf
 */client
 */server
 */mirror
-*/users
-
+*/files/
+.vscode/

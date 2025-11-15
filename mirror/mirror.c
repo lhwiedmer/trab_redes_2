@@ -28,6 +28,8 @@
 #include <sys/types.h>   // Tipos de dados (socklen_t)
 #include <unistd.h>      // close, read, write
 
+#include "../message.h"
+
 #define TAM_MAX 1024  // Tamanho máximo do buffer de dados
 #define TAM_FILA 5    // Tamanho da fila de conexões
 
