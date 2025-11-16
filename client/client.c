@@ -5,6 +5,7 @@
  * arquivos
  */
 
+#include <ctype.h>       // para isanul()
 #include <netdb.h>       // getaddrinfo, addrinfo
 #include <netinet/in.h>  // Estruturas de endereço IP (sockaddr_in)
 #include <stdio.h>
@@ -72,6 +73,68 @@ int getSecondWord(char *inBuffer, char *secondWord, int i) {
     return 1;
 }
 
+/**
+ * @brief Verifica a validade de s no padrão ID
+ * @param[in] s String que será verificada
+ * @return 0 caso não seja válida, 1 caso seja
+ */
+int idIsValid(const char *s) {
+    if (!s || s[0] == '\0') {
+        return 0;
+    }
+    if (strlen(s) > 255) {
+        return 0;
+    }
+
+    for (int i = 0; s[i] != '\0'; i++) {
+        if (isalnum((unsigned char)s[i])) {
+            continue;
+        }
+        if (s[i] == '_' || s[i] == '-') {
+            continue;
+        }
+
+        return 0;
+    }
+    return 1;
+}
+
+/**
+ * @brief Pede o ID pela linha de comando e o envia
+ * @param[in] sockfd Descritor de socket para a conexão
+ * @return -1 em caso de exit, 1 em caso de sucesso
+ */
+int sendId(int sockfd) {
+    char buffer[TAM_MAX];
+    memset(buffer, 0, TAM_MAX);
+    printf("Digite seu ID:\n> ");
+    fgets(buffer, sizeof(buffer), stdin);
+    buffer[strcspn(buffer, "\n")] = '\0';
+
+    while ((strcmp(buffer, "exit")) && (!idIsValid(buffer))) {
+        printf(
+            "ID inválido, insira um ID válido.\n"
+            "Caracteres válidos são letras, números, - e _.\n"
+            "O ID não pode ter mais de 255 caracteres.\n"
+            "Digite exit para fechar o programa.\n> ");
+        memset(buffer, 0, TAM_MAX);
+        fgets(buffer, sizeof(buffer), stdin);
+        buffer[strcspn(buffer, "\n")] = '\0';
+    }
+    if (strcmp(buffer, "exit") == 0) {
+        return -1;
+    }
+
+    unsigned char idMessage[TAM_MAX];
+    memset(idMessage, 0, TAM_MAX);
+    idMessage[0] = ID;
+    idMessage[1] = strlen(buffer);
+    memcpy(idMessage + 2, buffer, idMessage[1]);
+
+    sendMessage(sockfd, idMessage, idMessage[1] + 2);
+    return rcvMessage(sockfd, idMessage, 1);
+}
+
 void printCommands() {
     printf(
         "Comandos possíveis:\n"
@@ -84,7 +147,9 @@ void printCommands() {
         "principal na tela\n"
         "-> list\n"
         "#Fecha a conexão com o servidor principal\n"
-        "-> exit\n");
+        "-> exit\n"
+        "#Fecha o servidor principal e as réplicas, assim como o cliente\n"
+        "-> endall\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -99,8 +164,9 @@ int main(int argc, char *argv[]) {
         hints,  // Define o tipo de endereço do servidor (TCP + IPv4)
         *res;
     char inBuffer[TAM_MAX];  // Buffer de leitura
-    char *host = argv[1];    // Endereço do servidor
-    char *porta = argv[2];   // Porta do servidor
+    memset(inBuffer, 0, TAM_MAX);
+    char *host = argv[1];   // Endereço do servidor
+    char *porta = argv[2];  // Porta do servidor
 
     // Inicialização da estrutura hints
     memset(&hints, 0, sizeof(hints));
@@ -111,21 +177,21 @@ int main(int argc, char *argv[]) {
 
     // Obtém estrutura de endereço do servidor
     if (getaddrinfo(host, porta, &hints, &res) != 0) {
-        fprintf(stderr, "getaddrinfo\n");
+        fprintf(stderr, "Falha ao tentar obter a estrutura getaddrinfo.\n");
         return 1;
     }
 
     // Cria socket TCP
     sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sockfd < 0) {
-        fprintf(stderr, "socket\n");
+        fprintf(stderr, "Falha ao tentar criarr o socket.\n");
         freeaddrinfo(res);
         return 1;
     }
 
     // Conecta ao servidor
     if (connect(sockfd, res->ai_addr, res->ai_addrlen) < 0) {
-        fprintf(stderr, "connect\n");
+        fprintf(stderr, "Falha ao tentar conectar com servidor.\n");
         close(sockfd);
         freeaddrinfo(res);
         return 1;
@@ -134,10 +200,13 @@ int main(int argc, char *argv[]) {
     // Libera memória da estrutura res
     freeaddrinfo(res);
 
-    char firstWord[sizeof("upload")];
-    for (int i = 0; i < sizeof("upload"); i++) {
-        firstWord[i] = '\0';
+    if (sendId(sockfd) == -1) {
+        close(sockfd);
+        return 1;
     }
+
+    char firstWord[sizeof("upload")];
+    memset(firstWord, 0, sizeof("upload"));
 
     while (1) {
         // Lê comando do usuário
@@ -148,7 +217,8 @@ int main(int argc, char *argv[]) {
         int idx = getFirstWord(inBuffer, firstWord);
         if (idx == -1) {
             printf(
-                "Por favor insira um comando válido. Digite help para todas "
+                "Por favor insira um comando válido. Digite help para "
+                "todas "
                 "as opções.\n");
         } else if (!strcmp(firstWord, "help")) {
             // Imprime comandos
@@ -164,18 +234,32 @@ int main(int argc, char *argv[]) {
                     "<file>\n");
                 continue;
             }
-            int r = sendFile(sockfd, secondWord);
+            int r = sendFile(sockfd, secondWord, CLIENT_SERVER);
             if (r == -1) {
+                printf("Houve um erro no servidor, terminando o programa.\n");
+                endAll(sockfd);
+                return 1;
+            } else if (r == -2) {
                 printf(
-                    "Houve um erro no servidor, por favor tente novamente\n");
+                    "O arquivo requisitado não existe ou não está acessível, "
+                    "por favor insira um "
+                    "arquivo válido.\n");
             }
         } else if (!strcmp(firstWord, "list")) {
             // Pede lista
+            if (reqList(sockfd) == -1) {
+                endAll(sockfd);
+                return 1;
+            }
         } else if (!strcmp(firstWord, "exit")) {
             // Manda mensagem para desconecar e finaliza o programa
+            unsigned char a = EXIT;
+            sendMessage(sockfd, &a, 1);
             break;
-        } else if (!strcmp(firstWord, "endAll")) {
+        } else if (!strcmp(firstWord, "endall")) {
             // Mensagem para o server fechar
+            endAll(sockfd);
+            return 1;
         } else {
             printf(
                 "Por favor insira um comando válido. Digite help para "

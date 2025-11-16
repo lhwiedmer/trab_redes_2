@@ -4,8 +4,12 @@
  * @details Fonte com funções tratando cada comando
  */
 
+#ifndef MESSAGE_C
+#define MESSAGE_C
+
 #include "message.h"
 
+#include <dirent.h>
 #include <netdb.h>       // getaddrinfo, addrinfo
 #include <netinet/in.h>  // Estruturas de endereço IP (sockaddr_in)
 #include <stdio.h>
@@ -15,6 +19,9 @@
 #include <sys/stat.h>    // Informações de arquivos
 #include <sys/types.h>   // Tipos de dados
 #include <unistd.h>      // close, read, write
+
+#include "list.h"
+#include "utils.h"
 
 void sendMessage(int sockfd, unsigned char* buffer, unsigned long n) {
     if (send(sockfd, buffer, n, 0) == -1) {
@@ -32,6 +39,13 @@ int rcvMessage(int sockfd, unsigned char* buffer, unsigned long n) {
         return -1;
     }
     return 1;
+}
+
+void endAll(int sockfd) {
+    unsigned char a = END;
+    sendMessage(sockfd, &a, 1);
+    close(sockfd);
+    return;
 }
 
 /**
@@ -54,11 +68,10 @@ int sendFileInfo(int sockfd, const char* fileName, unsigned long size) {
     return rcvMessage(sockfd, buffer, TAM_MAX);
 }
 
-int sendFile(int sockfd, const char* fileName) {
+int sendFile(int sockfd, const char* fileName, int mode) {
     struct stat st;
     if (stat(fileName, &st) != 0) {
-        perror("Falha ao tentar encontrar arquivo\n");
-        exit(1);
+        return -2;
     }
     unsigned long size = st.st_size;
     const char* base = strrchr(fileName, '/');  // Pega apenas o nome do arquivo
@@ -83,7 +96,9 @@ int sendFile(int sockfd, const char* fileName) {
     unsigned char buffer[TAM_MAX];
     buffer[0] = DATA;
 
-    printf("Enviando arquivo '%s'...\n", fileName);
+    if (mode == CLIENT_SERVER) {
+        printf("Enviando arquivo '%s'...\n", fileName);
+    }
 
     for (int i = 0; i < reps; i++) {
         fread(buffer + 1, 1, TAM_MAX - 1, arq);
@@ -91,25 +106,26 @@ int sendFile(int sockfd, const char* fileName) {
     }
 
     fclose(arq);
-
-    if (rcvMessage(sockfd, buffer, TAM_MAX) == 1) {
-        if (buffer[1] == 0) {
-            printf(
-                "Envio concluído. Arquivo replicado apenas para o servidor "
-                "principal\n");
-        } else {
-            printf(
-                "Envio concluído. Arquivo replicado com sucesso para %d "
-                "servidores "
-                "réplica.\n",
-                buffer[1]);
+    if (mode == CLIENT_SERVER) {
+        if (rcvMessage(sockfd, buffer, TAM_MAX) == 1) {
+            if (buffer[1] == 0) {
+                printf(
+                    "Envio concluído. Arquivo replicado apenas para o servidor "
+                    "principal\n");
+            } else {
+                printf(
+                    "Envio concluído. Arquivo replicado com sucesso para %d "
+                    "servidores "
+                    "réplica.\n",
+                    buffer[1]);
+            }
+            return 1;
         }
-        return 1;
     }
     return -1;
 }
 
-int rcvFile(int sockfd, unsigned char* buffer) {
+int rcvFile(int sockfd, unsigned char* buffer, const char* dirPath) {
     unsigned long size;
     memcpy(&size, buffer + 1, 8);
     unsigned char nameSize = buffer[9];
@@ -119,33 +135,18 @@ int rcvFile(int sockfd, unsigned char* buffer) {
     }
     name[nameSize] = '\0';
 
-    printf("Tamanho: %ld\nNome: %s\n", size, name);
-
-    struct stat st;
-    if (stat(FILE_DIR, &st) == 0) {
-        if (!S_ISDIR(st.st_mode)) {
-            // cria
-            if (mkdir(FILE_DIR, 0755) != 0) {
-                // mkdir falhou
-                return -1;
-            }
-        }
-    } else {
-        // cria
-        if (mkdir(FILE_DIR, 0755) != 0) {
-            // mkdir falhou
-            return -1;
-        }
+    if (createDir(dirPath) == -1) {
+        return -1;
     }
 
-    char newName[sizeof(FILE_DIR) + nameSize + 2];  // files/<file>\0
-    strcpy(newName, FILE_DIR);
+    char newName[sizeof(dirPath) + nameSize + 2];  // files/<file>\0
+    strcpy(newName, dirPath);
     strcat(newName, name);
 
     FILE* arq = fopen(newName, "w");
     if (!arq) {
         perror("Falha ao tentar abrir arquivo\n");
-        // Mandar mensagem?
+        return -1;
     }
     buffer[0] = OK;
     sendMessage(sockfd, buffer, 1);
@@ -162,11 +163,84 @@ int rcvFile(int sockfd, unsigned char* buffer) {
     fwrite(buffer + 1, 1, lastSize, arq);
     fclose(arq);
 
-    buffer[0] = OK;
-    buffer[1] = 0;
-    sendMessage(sockfd, buffer, 1);
+    printf("Arquivo %s recebido. Armazenamento local concluído.\n", name);
+
+    memset(buffer, 0, TAM_MAX);
+    strcpy((char*)buffer, newName);
 
     return 1;
 }
 
-int reqList(int sockdfd) { return 1; }
+int reqList(int sockfd) {
+    unsigned char a = LISTREQ;
+    sendMessage(sockfd, &a, 1);
+
+    char buffer[TAM_MAX];
+    memset(buffer, 0, TAM_MAX);
+    if (rcvMessage(sockfd, (unsigned char*)buffer, TAM_MAX) == -1) {
+        return -1;
+    }
+    if (buffer[1] == NONE) {
+        printf("O servidor não tem nenhum arquivo no diretório do usuário.\n");
+        return 1;
+    }
+    while (buffer[1] == MORE) {
+        printf("%s", buffer + 2);
+        if (rcvMessage(sockfd, (unsigned char*)buffer, TAM_MAX) == -1) {
+            printf("\n");
+            return -1;
+        }
+    }
+    printf("%s\n", buffer + 2);
+    return 1;
+}
+
+int sendList(int sockfd, const char* dirPath) {
+    unsigned char buffer[TAM_MAX];
+    buffer[0] = LISTASW;
+
+    DIR* dir;
+    dir = opendir(dirPath);
+    if (!dir) {
+        return -1;
+    }
+
+    printf("Recuperando listagem dos arquivos locais.\n");
+
+    node_t* head = createNameList(dir, dirPath);
+    if (!head) {
+        buffer[1] = NONE;
+        sendMessage(sockfd, buffer, 2);
+        return 1;
+    }
+
+    printf("Enviando informações ao cliente.\n");
+
+    int i = 2;
+
+    node_t* aux = head;
+    while (aux) {
+        if (i + aux->size + 1 < TAM_MAX) {
+            memcpy(buffer + i, aux->content, aux->size);
+            i += aux->size;
+            buffer[i++] = ' ';
+            aux = aux->prox;
+        } else {
+            // manda o buffer e reinicia
+            buffer[1] = MORE;
+            buffer[i] = '\0';
+            sendMessage(sockfd, buffer, i);
+            i = 2;
+        }
+    }
+    buffer[1] = LAST;
+    buffer[--i] = '\0';
+    printf("%s\n", buffer + 2);
+    sendMessage(sockfd, buffer, TAM_MAX);
+
+    destroyList(head);
+    closedir(dir);
+    return 1;
+}
+
+#endif

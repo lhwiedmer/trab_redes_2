@@ -10,12 +10,16 @@
 #define FILE_DIR "files/"  // Não usar diretório aninhado
 #define TAM_MAX 1024       // Tamanho máximo da mensagem
 
+#define CLIENT_SERVER 0
+#define SERVER_MIRROR 1
+
 /**
  * @brief Código para cada tipo de mensagem
  */
 typedef enum Code {
     OK,  //!< Mensagem de confirmação para que o outro lado possa continuar a
          //!< comunicação
+    ID,  //!< Mensagem contendo o ID do cliente
     DATA,      //!< Mensagem enviando conteúdo de um arquivo
     FILEINFO,  //!< Mensagem enviando metadados de um aquivo
     LISTREQ,   //!< Mensagem enviando pedido da lista de arquivos
@@ -25,6 +29,12 @@ typedef enum Code {
     END,       //!< Fecha o servidor
     ERROR      //!< Erro do lado do servidor
 } code_t;
+
+typedef enum ListMore {
+    NONE,  //!< Flag dizendo que não há nenhum arquivo no servidor
+    LAST,  //!< Flag dizendo que é a última mensagem daquele pedido de lista
+    MORE   //!< Flag dizendo que virão mais mensagens daquele pedido de lista
+} list_t;
 
 /**
  * @brief Envia uma mensagem
@@ -46,26 +56,45 @@ void sendMessage(int sockfd, unsigned char* buffer, unsigned long n);
 int rcvMessage(int sockfd, unsigned char* buffer, unsigned long n);
 
 /**
+ * @brief Envia uma mensagem para o servidor fechar
+ * @param[in] sockfd Descritor do socket para a conexão
+ */
+void endAll(int sockfd);
+
+/**
  * @brief Envia os dados de um arquivo
  * @param[in] sockfd Descritor de socket para a conexão
  * @param[in] fileName Nome do arquivo a ser enviado
- * @return -1 em caso de falha, e 1 em caso de sucesso
+ * @param[in] mode Modo de uso da função, pode ser CLIENT_SERVER OU
+ * SERVER_MIRROR
+ * @return -1 em caso de falha, -2 caso o arquivo não exista, e 1 em caso de
+ * sucesso
  */
-int sendFile(int sockfd, const char* fileName);
+int sendFile(int sockfd, const char* fileName, int mode);
 
 /**
  * @brief Recebe os dados de um arquivo
  * @param[in] sockfd Descritor de socket para a conexão
- * @param[in] buffer Metadados do arquivo(deve ser alocado com TAM_MAX)
+ * @param[in, out] buffer Metadados do arquivo(deve ser alocado com TAM_MAX). Ao
+ * final da função possui a path para o arquivo em que foi escrito o conteúdo.
+ * @param[in] dirPath Path para o diretório em que será escrito o arquivo
  * @return -1 em caso de falha, e 1 em caso de sucesso
  */
-int rcvFile(int sockfd, unsigned char* buffer);
+int rcvFile(int sockfd, unsigned char* buffer, const char* dirPath);
 
 /**
- * @brief Pede a lista de arquivos presentes no servidor
+ * @brief Pede e recebe a lista de arquivos presentes no servidor
  * @param[in] sockfd Descritor de socket para a conexão
  * @return -1 em caso de falha, e 1 em caso de sucesso
  */
-int reqList(int sockdfd);
+int reqList(int sockfd);
+
+/**
+ * @brief Envia a lista de arquivos no servidor
+ * @param[in] sockfd Descritor de socket para a conexão
+ * @param[in] dirPath Path para o diretório em que será escrito o arquivo
+ * @return -1 em caso de falha, e 1 em caso de sucesso
+ */
+int sendList(int sockfd, const char* dirPath);
 
 #endif
