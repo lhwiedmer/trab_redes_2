@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
         while (1) {
             printf("Aguardando mensagens...\n");
             memset(buffer, 0, sizeof(buffer));
-            recv(connfd, buffer, sizeof(buffer), 0);
+            rcvMessage(connfd, buffer, TAM_MAX);
             if (buffer[0] == FILEINFO) {
                 printf("Operação solicitada: upload\n");
                 if (rcvFile(connfd, buffer, dirPath) == -1) {
@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
                 close(sockfd);
                 return 0;
             } else {
-                printf("Operação desconhecida\n");
+                continue;
             }
         }
         // Fecha conexão com o cliente
