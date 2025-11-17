@@ -99,42 +99,6 @@ int idIsValid(const char *s) {
     return 1;
 }
 
-/**
- * @brief Pede o ID pela linha de comando e o envia
- * @param[in] sockfd Descritor de socket para a conexão
- * @return -1 em caso de exit, 1 em caso de sucesso
- */
-int sendId(int sockfd) {
-    char buffer[TAM_MAX];
-    memset(buffer, 0, TAM_MAX);
-    printf("Digite seu ID:\n> ");
-    fgets(buffer, sizeof(buffer), stdin);
-    buffer[strcspn(buffer, "\n")] = '\0';
-
-    while ((strcmp(buffer, "exit")) && (!idIsValid(buffer))) {
-        printf(
-            "ID inválido, insira um ID válido.\n"
-            "Caracteres válidos são letras, números, - e _.\n"
-            "O ID não pode ter mais de 255 caracteres.\n"
-            "Digite exit para fechar o programa.\n> ");
-        memset(buffer, 0, TAM_MAX);
-        fgets(buffer, sizeof(buffer), stdin);
-        buffer[strcspn(buffer, "\n")] = '\0';
-    }
-    if (strcmp(buffer, "exit") == 0) {
-        return -1;
-    }
-
-    unsigned char idMessage[TAM_MAX];
-    memset(idMessage, 0, TAM_MAX);
-    idMessage[0] = ID;
-    idMessage[1] = strlen(buffer);
-    memcpy(idMessage + 2, buffer, idMessage[1]);
-
-    sendMessage(sockfd, idMessage, idMessage[1] + 2);
-    return rcvMessage(sockfd, idMessage, 1);
-}
-
 void printCommands() {
     printf(
         "Comandos possíveis:\n"
@@ -154,8 +118,8 @@ void printCommands() {
 
 int main(int argc, char *argv[]) {
     // Verifica uso correto
-    if (argc != 3) {
-        fprintf(stderr, "Uso correto: %s <host> <porta>\n", argv[0]);
+    if (argc != 4) {
+        fprintf(stderr, "Uso correto: %s <id> <host> <porta>\n", argv[0]);
         return 1;
     }
 
@@ -165,8 +129,17 @@ int main(int argc, char *argv[]) {
         *res;
     char inBuffer[TAM_MAX];  // Buffer de leitura
     memset(inBuffer, 0, TAM_MAX);
-    char *host = argv[1];   // Endereço do servidor
-    char *porta = argv[2];  // Porta do servidor
+    char *id = argv[1];
+    char *host = argv[2];   // Endereço do servidor
+    char *porta = argv[3];  // Porta do servidor
+
+    if (!idIsValid(id)) {
+        printf(
+            "ID inválido, insira um ID válido.\n"
+            "Caracteres válidos são letras, números, - e _.\n"
+            "O ID não pode ter mais de 255 caracteres.\n");
+        return 1;
+    }
 
     // Inicialização da estrutura hints
     memset(&hints, 0, sizeof(hints));
@@ -200,7 +173,15 @@ int main(int argc, char *argv[]) {
     // Libera memória da estrutura res
     freeaddrinfo(res);
 
-    if (sendId(sockfd) == -1) {
+    unsigned char idMessage[TAM_MAX];
+    memset(idMessage, 0, TAM_MAX);
+    idMessage[0] = ID;
+    idMessage[1] = strlen(id);
+    memcpy(idMessage + 2, id, idMessage[1]);
+
+    sendMessage(sockfd, idMessage, idMessage[1] + 2);
+
+    if (rcvMessage(sockfd, idMessage, 1) == -1) {
         close(sockfd);
         return 1;
     }

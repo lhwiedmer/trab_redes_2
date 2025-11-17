@@ -20,6 +20,8 @@
 #define TAM_MAX 1024  // Tamanho máximo do buffer de dados
 #define TAM_FILA 5    // Tamanho da fila de conexões
 
+#define FILE_DIR "files_mirror/"  // Não usar diretório aninhado
+
 #define TEMP
 
 int main(int argc, char *argv[]) {

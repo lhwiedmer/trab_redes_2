@@ -7,8 +7,7 @@
 #ifndef MESSAGE_H
 #define MESSAGE_H
 
-#define FILE_DIR "files/"  // Não usar diretório aninhado
-#define TAM_MAX 1024       // Tamanho máximo da mensagem
+#define TAM_MAX 1024  // Tamanho máximo da mensagem
 
 #define CLIENT_SERVER 0
 #define SERVER_MIRROR 1
