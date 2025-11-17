@@ -1,5 +1,5 @@
 /**
- * @name client.c
+ * @name server.c
  * @author Luiz Henrique Murback Wiedmer
  * @details Código do servidor em um sistema cliente-servidor de upload de
  * arquivos

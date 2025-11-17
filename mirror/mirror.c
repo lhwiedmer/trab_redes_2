@@ -1,7 +1,7 @@
 /**
- * @name client.c
+ * @name mirror.c
  * @author Luiz Henrique Murback Wiedmer
- * @details Código do servidor em um sistema cliente-servidor de upload de
+ * @details Código do mirror em um sistema cliente-servidor de upload de
  * arquivos
  */
 
