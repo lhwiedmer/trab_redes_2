@@ -31,6 +31,7 @@ void sendMessage(int sockfd, unsigned char* buffer, unsigned long n) {
 }
 
 int rcvMessage(int sockfd, unsigned char* buffer, unsigned long n) {
+    memset(buffer, 0, n);
     if (recv(sockfd, buffer, n, 0) == -1) {
         perror("Falha ao tentar receber mensagem\n");
         exit(1);
@@ -176,7 +177,6 @@ int reqList(int sockfd) {
     sendMessage(sockfd, &a, 1);
 
     char buffer[TAM_MAX];
-    memset(buffer, 0, TAM_MAX);
     if (rcvMessage(sockfd, (unsigned char*)buffer, TAM_MAX) == -1) {
         return -1;
     }
@@ -202,7 +202,9 @@ int sendList(int sockfd, const char* dirPath) {
     DIR* dir;
     dir = opendir(dirPath);
     if (!dir) {
-        return -1;
+        buffer[1] = NONE;
+        sendMessage(sockfd, buffer, 2);
+        return 1;
     }
 
     printf("Recuperando listagem dos arquivos locais.\n");
@@ -236,7 +238,7 @@ int sendList(int sockfd, const char* dirPath) {
     buffer[1] = LAST;
     buffer[--i] = '\0';
     printf("%s\n", buffer + 2);
-    sendMessage(sockfd, buffer, TAM_MAX);
+    sendMessage(sockfd, buffer, i + 1);
 
     destroyList(head);
     closedir(dir);
