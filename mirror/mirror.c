@@ -20,14 +20,12 @@
 #define TAM_MAX 1024  // Tamanho máximo do buffer de dados
 #define TAM_FILA 5    // Tamanho da fila de conexões
 
-#define FILE_DIR "files_mirror/"  // Não usar diretório aninhado
-
 #define TEMP
 
 int main(int argc, char *argv[]) {
     // Verifica uso correto
-    if (argc != 2) {
-        fprintf(stderr, "Uso correto: %s <porta>\n", argv[0]);
+    if (argc != 3) {
+        fprintf(stderr, "Uso correto: %s <porta> <dir>\n", argv[0]);
         return 1;
     }
 
@@ -46,9 +44,13 @@ int main(int argc, char *argv[]) {
     unsigned char buffer[TAM_MAX];         // Buffer de dados
     socklen_t addr_len;                    // Tamanho da estrutura de endereço
     char *porta = argv[1];                 // Porta do servidor
+    char dir[TAM_MAX];
+    strcpy(dir, argv[2]);
+
+    strcat(dir, "/");
 
     // Cria diretório files/ se ainda não existe
-    createDir(FILE_DIR);
+    createDir(dir);
 
     // Inicialização da estrutura hints
     memset(&hints, 0, sizeof(hints));
@@ -121,7 +123,7 @@ int main(int argc, char *argv[]) {
 
         // Monta a path para o diretório do cliente
         char dirPath[TAM_MAX];
-        strcpy(dirPath, FILE_DIR);
+        strcpy(dirPath, dir);
         strcat(dirPath, id);
 
         unsigned char a = OK;
@@ -131,7 +133,6 @@ int main(int argc, char *argv[]) {
         // Loop para lidar com mensagens vindas do cliente conectado
         while (1) {
             printf("Aguardando mensagens...\n");
-            memset(buffer, 0, sizeof(buffer));
             rcvMessage(connfd, buffer, TAM_MAX);
             if (buffer[0] == FILEINFO) {
                 printf("Operação solicitada: upload\n");
