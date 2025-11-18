@@ -104,26 +104,28 @@ int sendFile(int sockfd, const char* fileName, int mode) {
     for (int i = 0; i < reps; i++) {
         fread(buffer + 1, 1, TAM_MAX - 1, arq);
         sendMessage(sockfd, buffer, TAM_MAX);
+        if ((mode == CLIENT_SERVER) || (i + 1 < reps)) {
+            if (rcvMessage(sockfd, buffer, TAM_MAX) == -1) {
+                return -1;
+            }
+        }
     }
 
     fclose(arq);
     if (mode == CLIENT_SERVER) {
-        if (rcvMessage(sockfd, buffer, TAM_MAX) == 1) {
-            if (buffer[1] == 0) {
-                printf(
-                    "Envio concluído. Arquivo replicado apenas para o servidor "
-                    "principal\n");
-            } else {
-                printf(
-                    "Envio concluído. Arquivo replicado com sucesso para %d "
-                    "servidores "
-                    "réplica.\n",
-                    buffer[1]);
-            }
-            return 1;
+        if (buffer[1] == 0) {
+            printf(
+                "Envio concluído. Arquivo replicado apenas para o servidor "
+                "principal\n");
+        } else {
+            printf(
+                "Envio concluído. Arquivo replicado com sucesso para %d "
+                "servidores "
+                "réplica.\n",
+                buffer[1]);
         }
     }
-    return -1;
+    return 1;
 }
 
 int rcvFile(int sockfd, unsigned char* buffer, const char* dirPath) {
@@ -158,6 +160,8 @@ int rcvFile(int sockfd, unsigned char* buffer, const char* dirPath) {
     for (int i = 0; i < reps; i++) {
         rcvMessage(sockfd, buffer, TAM_MAX);
         fwrite(buffer + 1, 1, TAM_MAX - 1, arq);
+        unsigned char a = OK;
+        sendMessage(sockfd, &a, 1);
     }
 
     rcvMessage(sockfd, buffer, TAM_MAX);

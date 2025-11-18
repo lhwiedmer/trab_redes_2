@@ -197,7 +197,6 @@ int main(int argc, char *argv[]) {
                 unsigned char correct = 0;
                 unsigned char a;
                 for (int i = 0; i < n; i++) {
-                    sleep(3);
                     sendFile(sockBuff[i], (char *)buffer, SERVER_MIRROR);
                     if (rcvMessage(sockBuff[i], &a, 1) == -1) {
                         printf("[Réplica %d] ERRO", i + 1);
