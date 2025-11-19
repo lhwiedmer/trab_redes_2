@@ -140,56 +140,33 @@ int main(int argc, char *argv[]) {
             "O ID não pode ter mais de 255 caracteres.\n");
         return 1;
     }
-
-    // Inicialização da estrutura hints
-    memset(&hints, 0, sizeof(hints));
-
-    // Configura os parâmetros do endereço do servidor: TCP + IPv4
-    hints.ai_family = AF_INET;        // IPv4
-    hints.ai_socktype = SOCK_STREAM;  // TCP
-
-    // Obtém estrutura de endereço do servidor
-    if (getaddrinfo(host, porta, &hints, &res) != 0) {
-        fprintf(stderr, "Falha ao tentar obter a estrutura getaddrinfo.\n");
-        return 1;
-    }
-
-    // Cria socket TCP
-    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sockfd < 0) {
-        fprintf(stderr, "Falha ao tentar criarr o socket.\n");
-        freeaddrinfo(res);
-        return 1;
-    }
-
-    // Conecta ao servidor
-    if (connect(sockfd, res->ai_addr, res->ai_addrlen) < 0) {
-        fprintf(stderr, "Falha ao tentar conectar com servidor.\n");
-        close(sockfd);
-        freeaddrinfo(res);
-        return 1;
-    }
-    printf("Conexão criada com o servidor primário.\n");
-    // Libera memória da estrutura res
-    freeaddrinfo(res);
-
-    unsigned char idMessage[TAM_MAX];
-    memset(idMessage, 0, TAM_MAX);
-    idMessage[0] = ID;
-    idMessage[1] = strlen(id);
-    memcpy(idMessage + 2, id, idMessage[1]);
-
-    sendMessage(sockfd, idMessage, idMessage[1] + 2);
-
-    if (rcvMessage(sockfd, idMessage, 1) == -1) {
-        close(sockfd);
-        return 1;
-    }
-
-    char firstWord[sizeof("upload")];
-    memset(firstWord, 0, sizeof("upload"));
-
     while (1) {
+        // Inicialização da estrutura hints
+        memset(&hints, 0, sizeof(hints));
+
+        // Configura os parâmetros do endereço do servidor: TCP + IPv4
+        hints.ai_family = AF_INET;        // IPv4
+        hints.ai_socktype = SOCK_STREAM;  // TCP
+
+        // Obtém estrutura de endereço do servidor
+        if (getaddrinfo(host, porta, &hints, &res) != 0) {
+            fprintf(stderr, "Falha ao tentar obter a estrutura getaddrinfo.\n");
+            return 1;
+        }
+        sockfd = connectToServer(res);
+        if (sockfd == -1) {
+            return 1;
+        }
+        if (sendId(sockfd, id) == -1) {
+            printf("Houve um erro no servidor, terminando o programa.\n");
+            endAll(sockfd);
+            return 1;
+        }
+        printf("Conexão criada com o servidor primário.\n");
+
+        char firstWord[sizeof("upload")];
+        memset(firstWord, 0, sizeof("upload"));
+
         // Lê comando do usuário
         printf("Digite um comando:\n> ");
         fgets(inBuffer, sizeof(inBuffer), stdin);
@@ -204,7 +181,6 @@ int main(int argc, char *argv[]) {
         } else if (!strcmp(firstWord, "help")) {
             // Imprime comandos
             printCommands();
-            continue;
         } else if (!strcmp(firstWord, "upload")) {
             // Lê resto da entrada
             char secondWord[256];
@@ -213,12 +189,15 @@ int main(int argc, char *argv[]) {
                 printf(
                     "Por favor use o comando de maneira válida. upload "
                     "<file>\n");
+                close(sockfd);
                 continue;
             }
+
             int r = sendFile(sockfd, secondWord, CLIENT_SERVER);
             if (r == -1) {
                 printf("Houve um erro no servidor, terminando o programa.\n");
                 endAll(sockfd);
+                freeaddrinfo(res);
                 return 1;
             } else if (r == -2) {
                 printf(
@@ -229,28 +208,31 @@ int main(int argc, char *argv[]) {
         } else if (!strcmp(firstWord, "list")) {
             // Pede lista
             if (reqList(sockfd) == -1) {
+                printf("Houve um erro no servidor, terminando o programa.\n");
                 endAll(sockfd);
+                freeaddrinfo(res);
                 return 1;
             }
         } else if (!strcmp(firstWord, "exit")) {
             // Manda mensagem para desconecar e finaliza o programa
             unsigned char a = EXIT;
             sendMessage(sockfd, &a, 1);
+            close(sockfd);
             break;
         } else if (!strcmp(firstWord, "endall")) {
             // Mensagem para o server fechar
             endAll(sockfd);
-            return 1;
+            break;
         } else {
             printf(
                 "Por favor insira um comando válido. Digite help para "
                 "todas "
-                "as opções.\n");
-            continue;
+                "as opções.\n>");
         }
+        close(sockfd);
     }
 
     // Fecha socket
-    close(sockfd);
+    freeaddrinfo(res);
     return 0;
 }

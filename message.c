@@ -42,11 +42,69 @@ int rcvMessage(int sockfd, unsigned char* buffer, unsigned long n) {
     return 1;
 }
 
+int connectToServer(struct addrinfo* res) {
+    // Cria socket TCP
+    int sockfd;
+    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sockfd == -1) {
+        fprintf(stderr, "Falha ao tentar criar o socket.\n");
+        freeaddrinfo(res);
+        return -1;
+    }
+
+    // Conecta ao servidor
+    if (connect(sockfd, res->ai_addr, res->ai_addrlen) < 0) {
+        fprintf(stderr, "Falha ao tentar conectar com servidor.\n");
+        close(sockfd);
+        freeaddrinfo(res);
+        return -1;
+    }
+    return sockfd;
+}
+
+int sendId(int sockfd, const char* id) {
+    unsigned char idMessage[TAM_MAX];
+    memset(idMessage, 0, TAM_MAX);
+    idMessage[0] = ID;
+    idMessage[1] = strlen(id);
+    memcpy(idMessage + 2, id, idMessage[1]);
+
+    sendMessage(sockfd, idMessage, idMessage[1] + 2);
+
+    if (rcvMessage(sockfd, idMessage, 1) == -1) {
+        return -1;
+    }
+    return 1;
+}
+
+char* rcvId(int sockfd, char* destDirPath, const char* srcDirPath,
+            unsigned long n) {
+    // Receber ID do cliente
+    unsigned char buffer[TAM_MAX];
+    rcvMessage(sockfd, buffer, TAM_MAX);
+    char* id = malloc(256);
+    if (!id) {
+        return NULL;
+    }
+    for (int i = 0; i < buffer[1]; i++) {
+        id[i] = buffer[i + 2];
+    }
+    id[buffer[1]] = '\0';
+
+    // Monta a path para o diretório do cliente
+    snprintf(destDirPath, n - 1, "%s/%s/", srcDirPath, id);
+    printf("Conexão com cliente [%s] estabelecida.\n", id);
+
+    unsigned char a = OK;
+
+    sendMessage(sockfd, &a, 1);
+    return id;
+}
+
 void endAll(int sockfd) {
     unsigned char a = END;
     sendMessage(sockfd, &a, 1);
     close(sockfd);
-    return;
 }
 
 /**

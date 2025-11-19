@@ -7,6 +7,10 @@
 #ifndef MESSAGE_H
 #define MESSAGE_H
 
+#include <netdb.h>       // getaddrinfo, addrinfo
+#include <netinet/in.h>  // Estruturas de endereço IP (sockaddr_in)
+#include <sys/socket.h>  // Funções e estruturas de socket
+
 #define TAM_MAX 1024  // Tamanho máximo da mensagem
 
 #define CLIENT_SERVER 0
@@ -55,7 +59,37 @@ void sendMessage(int sockfd, unsigned char* buffer, unsigned long n);
 int rcvMessage(int sockfd, unsigned char* buffer, unsigned long n);
 
 /**
- * @brief Envia uma mensagem para o servidor fechar
+ * @brief Se conecta com o servidor descrito em res
+ * @param[in] res Ponteiro para struct com os dados necessários
+ * @return Um socket conectado ao server, -1 em caso de falha
+ */
+int connectToServer(struct addrinfo* res);
+
+/**
+ * @brief Envia o ID do cliente
+ * @param[in] sockfd Descritor de socket para a conexão
+ * @param[in] id O ID do cliente
+ * @return -1 em caso de falha e 1 em caso de sucesso
+ */
+int sendId(int sockfd, const char* id);
+
+/**
+ * @brief Recebe uma mensagem com o ID do cliente e constroi a path do diretório
+ * para do mesmo
+ * @param[in] sockfd Descritor de socket para a conexão
+ * @param[out] destDirPath Buffer em que será escrito a path para o diretório do
+ * cliente
+ * @param[in] srcDirPath Path do diretório já existente em que será criado o
+ * novo diretório, se não houver passar NULL
+ * @param[in] n Tamanho de máximo de destDirPath
+ * @return Uma string com o ID
+ */
+char* rcvId(int sockfd, char* destDirPath, const char* srcDirPath,
+            unsigned long n);
+
+/**
+ * @brief Envia uma mensagem para o servidor fechar e fecha a conexão com o
+ * servidor
  * @param[in] sockfd Descritor do socket para a conexão
  */
 void endAll(int sockfd);

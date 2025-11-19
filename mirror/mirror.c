@@ -47,8 +47,6 @@ int main(int argc, char *argv[]) {
     char dir[TAM_MAX];
     strcpy(dir, argv[2]);
 
-    strcat(dir, "/");
-
     // Cria diretório files/ se ainda não existe
     createDir(dir);
 
@@ -107,53 +105,32 @@ int main(int argc, char *argv[]) {
         printf("Conexão com servidor principal estabelecida.\n");
 
         memset(buffer, 0, TAM_MAX);
-
-        // Receber ID do cliente
-        rcvMessage(connfd, buffer, TAM_MAX);
-        char id[256];
-        for (int i = 0; i < buffer[1]; i++) {
-            id[i] = buffer[i + 2];
-        }
-        id[buffer[1]] = '\0';
-
-        printf("Cliente identificado como: %s\n", id);
-
-        id[buffer[1]] = '/';
-        id[buffer[1] + 1] = '\0';
-
-        // Monta a path para o diretório do cliente
         char dirPath[TAM_MAX];
-        strcpy(dirPath, dir);
-        strcat(dirPath, id);
 
-        unsigned char a = OK;
+        char *id = rcvId(connfd, dirPath, dir, TAM_MAX - 1);
 
-        sendMessage(connfd, &a, 1);
-
-        // Loop para lidar com mensagens vindas do cliente conectado
-        while (1) {
-            printf("Aguardando mensagens...\n");
-            rcvMessage(connfd, buffer, TAM_MAX);
-            if (buffer[0] == FILEINFO) {
-                printf("Operação solicitada: upload\n");
-                if (rcvFile(connfd, buffer, dirPath) == -1) {
-                    unsigned char a = ERROR;
-                    sendMessage(connfd, &a, 1);
-                }
-                buffer[0] = OK;
-                sendMessage(connfd, buffer, 1);
-            } else if (buffer[0] == END) {
-                printf("Operação solicitada: endall\n");
-                close(connfd);
-                close(sockfd);
-                return 0;
-            } else {
-                printf("Operação desconhecida\n");
-                continue;
+        printf("Aguardando mensagens...\n");
+        rcvMessage(connfd, buffer, TAM_MAX);
+        if (buffer[0] == FILEINFO) {
+            printf("Operação solicitada: upload\n");
+            if (rcvFile(connfd, buffer, dirPath) == -1) {
+                unsigned char a = ERROR;
+                sendMessage(connfd, &a, 1);
             }
+            buffer[0] = OK;
+            sendMessage(connfd, buffer, 1);
+        } else if (buffer[0] == END) {
+            printf("Operação solicitada: endall\n");
+            close(connfd);
+            close(sockfd);
+            return 0;
+        } else {
+            printf("Operação desconhecida\n");
+            continue;
         }
         // Fecha conexão com o cliente
         close(connfd);
+        free(id);
     }
 
     // Fecha socket de escuta

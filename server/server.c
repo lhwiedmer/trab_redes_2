@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
         *res;
     int n;
     fscanf(arq, "%3d", &n);
-    int sockBuff[n];
+    struct addrinfo *resBuff[n];
     char hostM[50];
     char portM[50];
     for (int i = 0; i < n; i++) {
@@ -58,25 +58,8 @@ int main(int argc, char *argv[]) {
         hints.ai_socktype = SOCK_STREAM;  // TCP
 
         // Obtém estrutura de endereço do servidor
-        if (getaddrinfo(hostM, portM, &hints, &res) != 0) {
+        if (getaddrinfo(hostM, portM, &hints, &(resBuff[i])) != 0) {
             fprintf(stderr, "Falha ao tentar obter a estrutura getaddrinfo.\n");
-            return 1;
-        }
-
-        // Cria socket TCP
-        sockBuff[i] =
-            socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-        if (sockBuff[i] < 0) {
-            fprintf(stderr, "Falha ao tentar criarr o socket.\n");
-            freeaddrinfo(res);
-            return 1;
-        }
-
-        // Conecta ao servidor
-        if (connect(sockBuff[i], res->ai_addr, res->ai_addrlen) < 0) {
-            fprintf(stderr, "Falha ao tentar conectar com servidor.\n");
-            close(sockBuff[i]);
-            freeaddrinfo(res);
             return 1;
         }
     }
@@ -153,85 +136,72 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        printf("Conexão com cliente [%d] estabelecida.\n", count);
-
         memset(buffer, 0, TAM_MAX);
-
-        // Receber ID do cliente
-        rcvMessage(connfd, buffer, TAM_MAX);
-        for (int i = 0; i < n; i++) {
-            sendMessage(sockBuff[i], buffer, TAM_MAX);
-        }
-        char id[256];
-        for (int i = 0; i < buffer[1]; i++) {
-            id[i] = buffer[i + 2];
-        }
-        id[buffer[1]] = '\0';
-
-        printf("Cliente identificado como: %s\n", id);
-
-        id[buffer[1]] = '/';
-        id[buffer[1] + 1] = '\0';
-
-        // Monta a path para o diretório do cliente
         char dirPath[TAM_MAX];
-        strcpy(dirPath, FILE_DIR);
-        strcat(dirPath, id);
 
-        unsigned char a = OK;
+        char *id = rcvId(connfd, dirPath, FILE_DIR, TAM_MAX - 1);
+        if (!id) {
+            unsigned char a = ERROR;
+            sendMessage(connfd, &a, 1);
+        }
 
-        sendMessage(connfd, &a, 1);
-
-        // Loop para lidar com mensagens vindas do cliente conectado
-        while (1) {
-            printf("Aguardando mensagens...\n");
-            memset(buffer, 0, sizeof(buffer));
-            rcvMessage(connfd, buffer, TAM_MAX);
-            if (buffer[0] == FILEINFO) {
-                printf("Operação solicitada: upload\n");
-                if (rcvFile(connfd, buffer, dirPath) == -1) {
-                    unsigned char a = ERROR;
-                    sendMessage(connfd, &a, 1);
-                }
-                printf("Iniciando processo de replicação...\n");
-                unsigned char correct = 0;
-                unsigned char a;
-                for (int i = 0; i < n; i++) {
-                    sendFile(sockBuff[i], (char *)buffer, SERVER_MIRROR);
-                    if (rcvMessage(sockBuff[i], &a, 1) == -1) {
-                        printf("[Réplica %d] ERRO", i + 1);
-                        continue;
-                    }
-                    correct++;
-                    printf("[Réplica %d] OK\n", i + 1);
-                }
-                buffer[0] = OK;
-                buffer[1] = correct;
-                sendMessage(connfd, buffer, n);
-                memset(buffer, 0, TAM_MAX);
-            } else if (buffer[0] == LISTREQ) {
-                printf("Operação solicitada: list\n");
-                if (sendList(connfd, dirPath) == -1) {
-                    unsigned char a = ERROR;
-                    sendMessage(connfd, &a, 1);
-                }
-            } else if (buffer[0] == EXIT) {
-                printf("Operação solicitada: exit\n");
-                break;
-            } else if (buffer[0] == END) {
-                printf("Operação solicitada: endall\n");
-                for (int i = 0; i < n; i++) {
-                    endAll(sockBuff[i]);
-                }
-                close(connfd);
-                close(sockfd);
-                return 0;
-            } else {
-                printf("Operação desconhecida\n");
-                continue;
+        printf("Aguardando mensagens...\n");
+        memset(buffer, 0, sizeof(buffer));
+        rcvMessage(connfd, buffer, TAM_MAX);
+        if (buffer[0] == FILEINFO) {
+            printf("Operação solicitada: upload\n");
+            if (rcvFile(connfd, buffer, dirPath) == -1) {
+                unsigned char a = ERROR;
+                sendMessage(connfd, &a, 1);
             }
+            printf("Iniciando processo de replicação...\n");
+            unsigned char correct = 0;
+            unsigned char a;
+            for (int i = 0; i < n; i++) {
+                int sockM = connectToServer(resBuff[i]);
+                if (sockM == -1) {
+                    continue;
+                }
+                if (sendId(sockM, id) == -1) {
+                    printf("[Réplica %d] Erro durante o envio do ID\n", i + 1);
+                    close(sockM);
+                    continue;
+                }
+                sendFile(sockM, (char *)buffer, SERVER_MIRROR);
+                if (rcvMessage(sockM, &a, 1) == -1) {
+                    printf("[Réplica %d] Erro durante o envio dos dados\n",
+                           i + 1);
+                    close(sockM);
+                    continue;
+                }
+                correct++;
+                printf("[Réplica %d] OK\n", i + 1);
+                close(sockM);
+            }
+            buffer[0] = OK;
+            buffer[1] = correct;
+            sendMessage(connfd, buffer, n);
+            memset(buffer, 0, TAM_MAX);
+        } else if (buffer[0] == LISTREQ) {
+            printf("Operação solicitada: list\n");
+            if (sendList(connfd, dirPath) == -1) {
+                unsigned char a = ERROR;
+                sendMessage(connfd, &a, 1);
+            }
+        } else if (buffer[0] == EXIT) {
+            printf("Operação solicitada: exit\n");
+            break;
+        } else if (buffer[0] == END) {
+            printf("Operação solicitada: endall\n");
+            close(connfd);
+            close(sockfd);
+            return 0;
+        } else {
+            printf("Operação desconhecida\n");
+            continue;
         }
         // Fecha conexão com o cliente
+        free(id);
         close(connfd);
         count++;
     }
