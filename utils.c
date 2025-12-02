@@ -1,6 +1,7 @@
 /**
  * @name utils.c
  * @author Luiz Henrique Murback Wiedmer
+ * @author Bruno Corrado Crestani
  * @details Fonte com funções de uso geral
  */
 

@@ -1,6 +1,7 @@
 /**
  * @name message.h
  * @author Luiz Henrique Murback Wiedmer
+ * @author Bruno Corrado Crestani
  * @details Header com os códigos de mensagem e funções tratando cada comando
  */
 
@@ -26,7 +27,6 @@ typedef enum Code {
     DATA,      //!< Mensagem enviando conteúdo de um arquivo
     FILEINFO,  //!< Mensagem enviando metadados de um aquivo
     LISTREQ,   //!< Mensagem enviando pedido da lista de arquivos
-    LISTINFO,  //!< Informações da lista de arquivos
     LISTASW,   //!< Mensagem enviando parte da lista de arquivos
     EXIT,      //!< Desconecta do servidor
     END,       //!< Fecha o servidor

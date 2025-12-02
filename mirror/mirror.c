@@ -1,6 +1,7 @@
 /**
  * @name mirror.c
  * @author Luiz Henrique Murback Wiedmer
+ * @author Bruno Corrado Crestani
  * @details Código do mirror em um sistema cliente-servidor de upload de
  * arquivos
  */

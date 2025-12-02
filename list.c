@@ -1,6 +1,7 @@
 /**
  * @name list.c
  * @author Luiz Henrique Murback Wiedmer
+ * @author Bruno Corrado Crestani
  * @details Fonte com funções e estrutura de lista
  */
 

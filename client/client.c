@@ -1,6 +1,7 @@
 /**
  * @name client.c
  * @author Luiz Henrique Murback Wiedmer
+ * @author Bruno Corrado Crestani
  * @details Código do cliente em um sistema cliente-servidor de upload de
  * arquivos
  */

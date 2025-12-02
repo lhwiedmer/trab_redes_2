@@ -1,7 +1,9 @@
 /**
  * @name message.c
  * @author Luiz Henrique Murback Wiedmer
- * @details Fonte com funções tratando cada comando
+ * @author Bruno Corrado Crestani
+ * @details Fonte com funções tratando cada
+ * comando
  */
 
 #ifndef MESSAGE_C

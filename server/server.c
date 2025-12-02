@@ -1,8 +1,9 @@
 /**
  * @name server.c
  * @author Luiz Henrique Murback Wiedmer
- * @details Código do servidor em um sistema cliente-servidor de upload de
- * arquivos
+ * @author Bruno Corrado Crestani
+ * @details Código do servidor em um sistema
+ * cliente-servidor de upload de arquivos
  */
 
 #include <netdb.h>       // getaddrinfo, addrinfo
@@ -18,7 +19,7 @@
 #include "../utils.h"
 
 #define TAM_MAX 1024  // Tamanho máximo do buffer de dados
-#define TAM_FILA 5    // Tamanho da fila de conexões
+#define TAM_FILA 3    // Tamanho da fila de conexões
 
 #define FILE_DIR "files_server/"  // Não usar diretório aninhado
 
@@ -122,7 +123,6 @@ int main(int argc, char *argv[]) {
         close(sockfd);
         return 1;
     }
-    int count = 0;
     // Loop principal, aceita conexões iterativamente
     while (1) {
         addr_len = sizeof(cliente_addr);
@@ -190,9 +190,22 @@ int main(int argc, char *argv[]) {
             }
         } else if (buffer[0] == EXIT) {
             printf("Operação solicitada: exit\n");
-            break;
         } else if (buffer[0] == END) {
             printf("Operação solicitada: endall\n");
+            for (int i = 0; i < n; i++) {
+                int sockM = connectToServer(resBuff[i]);
+                if (sockM == -1) {
+                    continue;
+                }
+                if (sendId(sockM, id) == -1) {
+                    printf("[Réplica %d] Erro durante o envio do ID\n", i + 1);
+                    close(sockM);
+                    continue;
+                }
+                unsigned char a = END;
+                sendMessage(sockM, &a, 1);
+                close(sockM);
+            }
             close(connfd);
             close(sockfd);
             return 0;
@@ -203,7 +216,6 @@ int main(int argc, char *argv[]) {
         // Fecha conexão com o cliente
         free(id);
         close(connfd);
-        count++;
     }
 
     // Fecha socket de escuta
